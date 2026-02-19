@@ -1,0 +1,224 @@
+﻿import html
+import json
+import os
+import shutil
+import subprocess
+from datetime import datetime
+from pathlib import Path
+import streamlit as st
+ROOT = Path(__file__).resolve().parents[1]
+DATA = ROOT / "data"
+DEMO = DATA / "demo"
+PROJECTS = ROOT / "projects"
+TEMPLATES = ROOT / "templates" / "scaffolds"
+def sh_which(cmd: str):
+    return shutil.which(cmd)
+def read_text(p: Path) -> str:
+    return p.read_text(encoding="utf-8", errors="replace")
+def write_text(p: Path, s: str):
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(s, encoding="utf-8")
+def run_cmd(cmd, cwd=None) -> tuple[int, str]:
+    try:
+        p = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, shell=False)
+        out = (p.stdout or "") + (("\n" + p.stderr) if p.stderr else "")
+        return p.returncode, out.strip()
+    except Exception as e:
+        return 1, str(e)
+def scaffold_copy(template_id: str, project_name: str, repl: dict):
+    src = TEMPLATES / template_id
+    dst = PROJECTS / project_name
+    if not src.exists():
+        raise RuntimeError(f"Missing template: {src}")
+    if dst.exists():
+        raise RuntimeError(f"Project already exists: {dst}")
+    shutil.copytree(src, dst)
+    # Replace tokens in text files
+    exts = {".py",".txt",".md",".yml",".yaml",".sh",".ps1",".toml",".json","Dockerfile"}
+    for fp in dst.rglob("*"):
+        if fp.is_file():
+            if fp.name == "Dockerfile" or fp.suffix.lower() in exts:
+                s = read_text(fp)
+                for k,v in repl.items():
+                    s = s.replace("{{"+k+"}}", str(v))
+                write_text(fp, s)
+    return dst
+# --- UI ---
+st.set_page_config(page_title="AI Training Hub", layout="wide")
+st.title("AI Training Hub (Local Ollama + Agent Frameworks)")
+# Ensure demo files exist
+DEMO.mkdir(parents=True, exist_ok=True)
+if not (DEMO / "sample_ticket.txt").exists():
+    write_text(DEMO / "sample_ticket.txt", "Demo missing. Re-run setup.\n")
+if not (DEMO / "policy.txt").exists():
+    write_text(DEMO / "policy.txt", "Demo missing. Re-run setup.\n")
+from bots.registry import list_bots, load_bot_callable
+BOTS = list_bots()
+BOT_BY_ID = {b["bot_id"]: b for b in BOTS}
+# CSS for color-coded bot output
+st.markdown(
+    """
+<style>
+.botbox {
+  border-left: 8px solid var(--accent);
+  background: rgba(255,255,255,0.04);
+  padding: 0.85rem 1rem;
+  border-radius: 14px;
+  white-space: pre-wrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 0.95rem;
+}
+.smallhint { color: rgba(255,255,255,0.65); font-size: 0.9rem; }
+</style>
+""",
+    unsafe_allow_html=True,
+)
+tabs = st.tabs([
+    "Environment",
+    "Install Packages",
+    "Ollama Test",
+    "Scaffold Projects",
+    "CLI Runner",
+    "Deployment Demos",
+    "Tests",
+])
+with tabs[0]:
+    st.subheader("Environment")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.write("**Repo**:", str(ROOT))
+        st.write("**Python**:", shutil.which("python") or "(not on PATH)")
+        st.write("**Venv**:", str(ROOT/".venv"))
+        st.write("**Bots**:", [b["bot_id"] for b in BOTS])
+    with col2:
+        tools = {
+            "docker": sh_which("docker"),
+            "kubectl": sh_which("kubectl"),
+            "kind": sh_which("kind"),
+            "minikube": sh_which("minikube"),
+            "sbatch (SLURM)": sh_which("sbatch"),
+        }
+        st.write("**Tooling**")
+        st.json({k: ("OK" if v else "missing") for k,v in tools.items()})
+    st.info("Windows: run  .\\scripts\\windows\\setup.ps1  then  .\\scripts\\windows\\run.ps1\nUbuntu: bash scripts/linux/setup.sh then bash scripts/linux/run.sh")
+with tabs[1]:
+    st.subheader("Install Packages (zero-to-run)")
+    st.write("These are the required Python deps for the Hub + bots + demos:")
+    req = (ROOT / "requirements" / "requirements-hub.txt")
+    st.code(read_text(req) if req.exists() else "(missing requirements file)")
+    st.markdown("**Windows**")
+    st.code(r".\scripts\windows\setup.ps1", language="powershell")
+    st.markdown("**Ubuntu 24**")
+    st.code("bash scripts/linux/setup.sh", language="bash")
+    st.caption("If your lab blocks installs, you can pre-build wheels and point pip at a local cache later.")
+with tabs[2]:
+    st.subheader("Ollama Test")
+    host = st.text_input("OLLAMA_HOST", value=os.environ.get("OLLAMA_HOST","http://localhost:11434"))
+    st.caption("This tab only checks the API. Install/Start Ollama separately if it’s missing.")
+    import requests
+    ok = False
+    try:
+        r = requests.get(host.rstrip("/") + "/api/tags", timeout=2)
+        ok = (r.status_code == 200)
+        if ok:
+            st.success("Ollama API reachable.")
+            st.json(r.json())
+        else:
+            st.warning(f"Ollama responded: {r.status_code}")
+    except Exception as e:
+        st.warning(f"Not reachable: {e}")
+        st.code("Windows check: Test-NetConnection localhost -Port 11434", language="powershell")
+with tabs[3]:
+    st.subheader("Create Student Project Templates")
+    PROJECTS.mkdir(parents=True, exist_ok=True)
+    templates = {
+        "FastAPI Bot Service (Docker)": "fastapi-docker",
+        "Kubernetes Manifests (Service + Deployment)": "k8s",
+        "SLURM Batch Job (sbatch)": "slurm",
+        "LangGraph Starter (CLI)": "langgraph-cli",
+    }
+    project_name = st.text_input("New project name", value=f"student-app-{int(datetime.utcnow().timestamp())}")
+    tmpl_label = st.selectbox("Template", list(templates.keys()))
+    if tmpl_label == "Kubernetes Manifests (Service + Deployment)":
+        image = st.text_input("Docker image", value="ai-training-hub/bot-service:latest")
+        replicas = st.number_input("Replicas", min_value=1, max_value=10, value=1, step=1)
+    else:
+        image = "ai-training-hub/bot-service:latest"
+        replicas = 1
+    if st.button("Create Project"):
+        dst = scaffold_copy(
+            templates[tmpl_label],
+            project_name,
+            repl={"PROJECT_NAME": project_name, "IMAGE": image, "REPLICAS": replicas},
+        )
+        st.success(f"Created: {dst}")
+        st.markdown("**Next steps**")
+        if tmpl_label.startswith("FastAPI"):
+            st.code(f"cd projects/{project_name}\ndocker build -t {image} .\ndocker run --rm -p 8787:8787 {image}", language="bash")
+        elif tmpl_label.startswith("Kubernetes"):
+            st.code(f"cd projects/{project_name}\n# edit IMAGE/replicas if needed\nkubectl apply -f bot-service.yaml\nkubectl port-forward svc/bot-service 8787:8787", language="bash")
+        elif tmpl_label.startswith("SLURM"):
+            st.code(f"cd projects/{project_name}\nsbatch job.sbatch", language="bash")
+        else:
+            st.code(f"cd projects/{project_name}\n# follow README.md", language="bash")
+with tabs[4]:
+    st.subheader("CLI Runner (students demo bot behavior from files)")
+    left, right = st.columns([1, 2])
+    with left:
+        bot_id = st.selectbox("Bot", [b["bot_id"] for b in BOTS], index=0)
+        demo_files = sorted([p.name for p in DEMO.glob("*.txt")])
+        input_name = st.selectbox("Input file", demo_files, index=0 if demo_files else 0)
+        extra_policy = st.checkbox("Include policy.txt", value=True)
+        if st.button("Run Bot Now"):
+            files = {}
+            prompt = read_text(DEMO / input_name)
+            files[input_name] = prompt
+            if extra_policy and (DEMO / "policy.txt").exists():
+                files["policy.txt"] = read_text(DEMO / "policy.txt")
+            fn = load_bot_callable(bot_id)
+            out = fn(prompt, files)
+            # persist to session
+            st.session_state["last_output"] = out
+            st.session_state["last_bot"] = bot_id
+    with right:
+        st.markdown("**Command (copy/paste):**")
+        cmd = f'python -m bots.run_cli --bot {bot_id} --input-file data/demo/{input_name}' + (' --file data/demo/policy.txt' if extra_policy else '')
+        st.code(cmd, language="bash")
+        out = st.session_state.get("last_output", "")
+        if out:
+            color = BOT_BY_ID.get(st.session_state.get("last_bot",""), {}).get("color", "#666666")
+            st.markdown(
+                f'<div class="botbox" style="--accent:{color}">{html.escape(out)}</div>',
+                unsafe_allow_html=True
+            )
+            if st.button("Save output to logs/"):
+                ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+                p = ROOT / "logs" / f"bot_output_{ts}.txt"
+                write_text(p, out)
+                st.success(f"Saved: {p}")
+with tabs[5]:
+    st.subheader("Deployment Demos (3+)")
+    st.markdown("Use these to demonstrate **expected org deployment patterns** locally.")
+    demo = st.selectbox("Demo", [
+        "1) Faux Server (FastAPI) - local process",
+        "2) Docker - build & run a bot service",
+        "3) Kubernetes - apply manifests & port-forward",
+        "4) SLURM - submit batch job (if available)",
+    ])
+    if demo.startswith("1)"):
+        st.code("python -m bots.api_server --port 8787\n# then:\ncurl http://127.0.0.1:8787/health\ncurl -X POST http://127.0.0.1:8787/run -H \"Content-Type: application/json\" -d '{\"bot_id\":\"fallback_bot\",\"prompt\":\"hello\"}'", language="bash")
+    elif demo.startswith("2)"):
+        st.code("cd projects/<your-fastapi-project>\ndocker build -t ai-training-hub/bot-service:latest .\ndocker run --rm -p 8787:8787 ai-training-hub/bot-service:latest\ncurl http://127.0.0.1:8787/health", language="bash")
+    elif demo.startswith("3)"):
+        st.code("cd projects/<your-k8s-project>\nkubectl apply -f bot-service.yaml\nkubectl get pods\nkubectl port-forward svc/bot-service 8787:8787\ncurl http://127.0.0.1:8787/health", language="bash")
+    else:
+        st.code("cd projects/<your-slurm-project>\nsbatch job.sbatch\nsqueue -u $USER\ncat slurm_out_<jobid>.txt", language="bash")
+with tabs[6]:
+    st.subheader("Tests")
+    st.caption("Smoke test your environment and bots.")
+    if st.button("List bots"):
+        st.json(BOTS)
+    if st.button("Run fallback_bot self-test via CLI"):
+        code, out = run_cmd([shutil.which("python") or "python", "-m", "bots.run_cli", "--bot", "fallback_bot", "--input-file", "data/demo/sample_ticket.txt", "--file", "data/demo/policy.txt"])
+        st.code(out)
+        st.write("Exit code:", code)

@@ -1,0 +1,3 @@
+﻿image: ai-training-hub/bot-service:latest
+replicas: 1
+servicePort: 8787

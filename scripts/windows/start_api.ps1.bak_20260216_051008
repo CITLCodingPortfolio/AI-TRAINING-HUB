@@ -1,0 +1,8 @@
+﻿param(
+  [int]$Port = 8787
+)
+$ErrorActionPreference = "Stop"
+$Repo = (Get-Location).Path
+$py = Join-Path $Repo ".venv\Scripts\python.exe"
+if (-not (Test-Path $py)) { & (Join-Path $Repo "scripts\windows\setup.ps1"); }
+& $py -m bots.api_server --port $Port

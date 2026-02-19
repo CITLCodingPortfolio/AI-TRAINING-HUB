@@ -1,0 +1,310 @@
+﻿# -*- coding: utf-8 -*-
+from __future__ import annotations
+import os
+import sys
+import json
+import time
+import socket
+import shutil
+import subprocess
+from pathlib import Path
+from typing import Dict, Any, List
+import streamlit as st
+import requests
+from bots.registry import list_bots, get_registry
+from bots.gpu_status import get_gpus
+APP_TITLE = "AI Training Hub (Local Ollama + Agent Frameworks)"
+DEFAULT_PORT = int(os.environ.get("AI_TRAINING_HUB_PORT", "8502"))
+DEFAULT_API_PORT = int(os.environ.get("AI_TRAINING_HUB_API_PORT", "8787"))
+
+def load_api_port(default_port: int) -> int:
+    # Priority: env var (current process) -> port file written by start_api -> default
+    try:
+        envp = os.environ.get("AI_TRAINING_HUB_API_PORT")
+        if envp:
+            return int(envp)
+    except Exception:
+        pass
+    try:
+        port_file = (REPO / "data" / "runtime" / "api_port.txt")
+        if port_file.exists():
+            v = port_file.read_text(encoding="utf-8", errors="ignore").strip()
+            if v:
+                return int(v)
+    except Exception:
+        pass
+    return int(default_port)DEFAULT_OLLAMA_HOST = os.environ.get("OLLAMA_HOST") or os.environ.get("CITL_OLLAMA_HOST") or "http://localhost:11434"
+REPO = Path(__file__).resolve().parents[1]
+DATA = REPO / "data"
+LOGS = REPO / "logs"
+DATA.mkdir(exist_ok=True)
+LOGS.mkdir(exist_ok=True)
+def find_free_port(start: int, tries: int = 50) -> int:
+    for p in range(start, start + tries):
+        s = socket.socket()
+        try:
+            s.bind(("127.0.0.1", p))
+            return p
+        except OSError:
+            pass
+        finally:
+            try: s.close()
+            except: pass
+    raise RuntimeError(f"No free port found in range {start}..{start+tries-1}")
+def css():
+    st.markdown("""
+    <style>
+      .bot-line { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+                 padding: 10px 12px; border-radius: 10px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+                 white-space: pre-wrap; }
+      .badge { display:inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600;
+               background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.10); }
+      .small { opacity: 0.8; font-size: 12px; }
+      .ok { padding: 10px 12px; border-radius: 10px; background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.25); }
+      .warn { padding: 10px 12px; border-radius: 10px; background: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.25); }
+      .bad { padding: 10px 12px; border-radius: 10px; background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.25); }
+      .hr { height:1px; background: rgba(255,255,255,0.08); margin: 12px 0; }
+    </style>
+    """, unsafe_allow_html=True)
+def h_badge(text: str, color: str):
+    return f"<span class='badge' style='color:{color}; border-color:{color}55'>{text}</span>"
+def internet_ok() -> bool:
+    try:
+        requests.get("https://pypi.org", timeout=2)
+        return True
+    except Exception:
+        return False
+def ollama_status(host: str) -> Dict[str, Any]:
+    try:
+        r = requests.get(f"{host.rstrip('/')}/api/tags", timeout=2)
+        r.raise_for_status()
+        models = (r.json() or {}).get("models") or []
+        names = [m.get("name") for m in models if m.get("name")]
+        return {"ok": True, "models": sorted(names)}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+def run_cli_bot(bot_id: str, args: Dict[str, Any]) -> str:
+    # Runs CLI subprocess to prove CLI-only behavior; returns stdout+stderr
+    py = sys.executable
+    cmd = [py, "-m", "bots.run_bot", "--bot", bot_id, "--json"]
+    if args.get("text"):
+        cmd += ["--text", str(args["text"])]
+    if args.get("input_file"):
+        cmd += ["--input-file", str(args["input_file"])]
+    if args.get("mode"):
+        cmd += ["--mode", str(args["mode"])]
+    if args.get("target"):
+        cmd += ["--target", str(args["target"])]
+    for f in (args.get("files") or []):
+        cmd += ["--file", str(f)]
+    p = subprocess.run(cmd, capture_output=True, text=True)
+    out = (p.stdout or "") + (("\n" + p.stderr) if p.stderr else "")
+    return out.strip()
+def tab_environment():
+    st.subheader("Environment")
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Python", sys.version.split()[0])
+    col2.metric("Platform", sys.platform)
+    col3.metric("Repo", str(REPO))
+    st.markdown("<div class='hr'></div>", unsafe_allow_html=True)
+    # GPU
+    st.subheader("GPU / VRAM / Temperature")
+    gpus = get_gpus()
+    if not gpus:
+        st.markdown("<div class='warn'>No GPU metrics found. If NVIDIA: install driver tools so <b>nvidia-smi</b> is available (temp may be N/A on some systems).</div>", unsafe_allow_html=True)
+    else:
+        for g in gpus:
+            c1, c2, c3, c4 = st.columns(4)
+            c1.write(h_badge(g.name, "#93C5FD"), unsafe_allow_html=True)
+            c2.metric("VRAM Total (MB)", g.vram_total_mb if g.vram_total_mb is not None else "N/A")
+            c3.metric("VRAM Used (MB)", g.vram_used_mb if g.vram_used_mb is not None else "N/A")
+            c4.metric("Temp (Â°C)", g.temp_c if g.temp_c is not None else "N/A")
+            st.caption(f"source: {g.source}")
+    st.markdown("<div class='hr'></div>", unsafe_allow_html=True)
+    # Ollama
+    st.subheader("Ollama")
+    st.write(f"Host: `{DEFAULT_OLLAMA_HOST}`")
+    stt = ollama_status(DEFAULT_OLLAMA_HOST)
+    if stt["ok"]:
+        st.markdown("<div class='ok'>Ollama reachable. Models detected.</div>", unsafe_allow_html=True)
+        st.code("\n".join(stt["models"]) if stt["models"] else "(no models)", language="text")
+    else:
+        st.markdown("<div class='bad'>Ollama NOT reachable. Start Ollama to enable local LLM features.</div>", unsafe_allow_html=True)
+        st.code(stt["error"], language="text")
+def tab_install():
+    st.subheader("Install Packages (Start from Zero)")
+    ok = internet_ok()
+    st.write("Internet:", "OK" if ok else "Not detected (offline installs will only work if wheels already cached).")
+    st.code(r"""
+# Windows (PowerShell)
+.\scripts\windows\setup.ps1
+# Ubuntu
+bash scripts/linux/setup.sh
+""".strip(), language="text")
+    st.caption("This repo uses a venv and requirements files under ./requirements")
+def tab_ollama_test():
+    st.subheader("Ollama Test")
+    host = st.text_input("Ollama Host", DEFAULT_OLLAMA_HOST)
+    stt = ollama_status(host)
+    if stt["ok"]:
+        st.success("Ollama reachable.")
+        st.write("Models:")
+        st.code("\n".join(stt["models"]), language="text")
+    else:
+        st.error("Ollama NOT reachable.")
+        st.code(stt["error"], language="text")
+def tab_scaffold():
+    st.subheader("Scaffold Projects (Templates)")
+    st.write("Creates a new project folder under `./projects/<name>` with starter code + demo inputs.")
+    templates = [
+        "LangGraph Starter (CLI)",
+        "IT Ticket Bot (Policy + Ticket)",
+        "DockerOps Bot (docker-compose review)",
+        "KubernetesOps Bot (manifest review)",
+        "SLURM Ops Bot (sbatch job review)",
+    ]
+    name = st.text_input("New project name", f"student-app-{int(time.time())}")
+    tpl = st.selectbox("Template", templates, index=0)
+    if st.button("Create Project"):
+        dest = REPO / "projects" / name
+        dest.mkdir(parents=True, exist_ok=True)
+        (dest / "README.md").write_text(f"# {name}\n\nTemplate: {tpl}\n", encoding="utf-8")
+        # Drop demo starter file
+        (dest / "demo_input.txt").write_text("Replace with your own inputs.\n", encoding="utf-8")
+        st.success(f"Created: {dest}")
+def tab_bot_builder():
+    st.subheader("Bot Builder (Student Bot with Custom Color)")
+    st.write("Creates a simple new bot module under `./bots/custom_<bot_id>.py` and registers it for GUI/CLI demos.")
+    bot_id = st.text_input("bot_id (no spaces)", "student_bot")
+    bot_name = st.text_input("Display name", "Student Bot")
+    bot_color = st.color_picker("Bot color (used in GUI CLI)", "#22C55E")
+    if st.button("Create Bot Stub"):
+        safe_id = "".join([c for c in bot_id if c.isalnum() or c in ("_","-")]).replace("-", "_")
+        mod_path = REPO / "bots" / f"custom_{safe_id}.py"
+        if mod_path.exists():
+            st.warning("Bot already exists.")
+        else:
+            mod_path.write_text(
+                f'''# -*- coding: utf-8 -*-\n"""
+Custom student bot: {bot_name}
+Color: {bot_color}
+"""\n\nfrom typing import Dict, Any\n\n\ndef run(text: str, files=None, params=None) -> Dict[str, Any]:\n    files = files or []\n    params = params or {{}}\n    return {{\n        "bot": "{safe_id}",\n        "ok": True,\n        "message": "Replace this with your bot logic.",\n        "text_len": len(text or ""),\n        "files": files,\n        "params": params,\n    }}\n''',
+                encoding="utf-8"
+            )
+            st.success(f"Created: {mod_path}")
+            st.info("Next: add it to bots/registry.py if you want it listed with demos.")
+def tab_chat():
+    st.subheader("Chat (Demo)")
+    reg = get_registry()
+    bot_ids = sorted(reg.keys())
+    bot_id = st.selectbox("Bot", bot_ids, index=0)
+    msg = st.text_area("Message", "Hello! Show me what you can do.")
+    if st.button("Run (CLI subprocess)"):
+        meta = reg[bot_id]
+        out = run_cli_bot(bot_id, {"text": msg})
+        st.markdown(f"{h_badge(meta.name, meta.color)}", unsafe_allow_html=True)
+        st.markdown(f"<div class='bot-line' style='border-color:{meta.color}55'>"
+                    f"<span style='color:{meta.color}'>CLI Output</span>\n\n{out}"
+                    f"</div>", unsafe_allow_html=True)
+def tab_tests():
+    st.subheader("Tests")
+    st.code(r"""
+# Windows
+.\.venv\Scripts\python.exe -m pytest -q
+# Ubuntu
+python -m pytest -q
+""".strip(), language="text")
+def tab_deploy_demo():
+    st.subheader("Deployment Demo (Faux Local Server + CLI Runs)")
+    st.write("This page demonstrates production-like behavior:")
+    st.markdown("""
+1. Students run bots from **CLI only** (files + args).
+2. A local **faux API server** logs each run.
+3. The GUI shows **copy/paste CLI commands** and displays **colored output** per bot.
+""")
+    reg = get_registry()
+    api_port = load_api_port(DEFAULT_API_PORT)
+    api_url = f"http://127.0.0.1:{api_port}"
+    # Server status
+    st.markdown("### Server Status")
+    try:
+        r = requests.get(f"{api_url}/health", timeout=1)
+        up = (r.status_code == 200)
+    except Exception:
+        up = False
+    if up:
+        st.markdown(f"<div class='ok'>UP â€” API: <a href='{api_url}' target='_blank'>{api_url}</a></div>", unsafe_allow_html=True)
+    else:
+        st.markdown(f"<div class='warn'>DOWN â€” start it with: <code>.\scripts\windows\start_api.ps1</code> or <code>bash scripts/linux/start_api.sh</code></div>", unsafe_allow_html=True)
+    st.markdown("<div class='hr'></div>", unsafe_allow_html=True)
+    # Bots list
+    st.markdown("### Bots")
+    bot_ids = sorted(reg.keys())
+    bot_id = st.selectbox("Select a bot", bot_ids, index=bot_ids.index("it_ticket_bot") if "it_ticket_bot" in bot_ids else 0)
+    meta = reg[bot_id]
+    st.markdown(f"{h_badge(meta.name + '  (' + meta.bot_id + ')', meta.color)}", unsafe_allow_html=True)
+    st.caption(meta.description)
+    demos = meta.demos
+    demo_titles = [d.title for d in demos]
+    demo_idx = st.selectbox("Prefilled demo run", list(range(len(demos))), format_func=lambda i: demo_titles[i])
+    demo = demos[demo_idx]
+    st.write(demo.description)
+    # Optional file uploader for students
+    st.markdown("#### Load files (optional)")
+    uploads = st.file_uploader("Upload one or more files for the bot run", accept_multiple_files=True)
+    saved_files: List[str] = []
+    if uploads:
+        up_dir = DATA / "uploads"
+        up_dir.mkdir(exist_ok=True)
+        for f in uploads:
+            p = up_dir / f.name
+            p.write_bytes(f.getbuffer())
+            saved_files.append(str(p))
+    # Construct args
+    args = dict(demo.args)
+    if saved_files:
+        args["files"] = saved_files
+    # Show CLI commands (Windows + Ubuntu)
+    st.markdown("#### CLI commands (copy/paste)")
+    # Windows
+    py = sys.executable
+    cmd = [py, "-m", "bots.run_bot", "--bot", bot_id]
+    if args.get("text"): cmd += ["--text", str(args["text"])]
+    if args.get("input_file"): cmd += ["--input-file", str(args["input_file"])]
+    if args.get("mode"): cmd += ["--mode", str(args["mode"])]
+    if args.get("target"): cmd += ["--target", str(args["target"])]
+    for f in (args.get("files") or []): cmd += ["--file", str(f)]
+    st.code("Windows:\n" + " ".join([f'"{c}"' if " " in c else c for c in cmd]), language="text")
+    st.code("Ubuntu:\n" + " ".join([c.replace('\\\\','/') for c in cmd]), language="text")
+    # Run button
+    if st.button("RUN DEMO (CLI subprocess)"):
+        out = run_cli_bot(bot_id, args)
+        st.markdown(f"<div class='bot-line' style='border-color:{meta.color}55'>"
+                    f"<span style='color:{meta.color}; font-weight:700'>BOT OUTPUT ({meta.bot_id})</span>\n\n{out}"
+                    f"</div>", unsafe_allow_html=True)
+    # API logs view (if server up)
+    if up:
+        st.markdown("<div class='hr'></div>", unsafe_allow_html=True)
+        st.markdown("### API Server Logs (last 100)")
+        try:
+            lr = requests.get(f"{api_url}/logs?n=100", timeout=2).json()
+            lines = lr.get("lines") or []
+            st.code("\n".join(lines), language="text")
+        except Exception as e:
+            st.code(str(e), language="text")
+def main():
+    st.set_page_config(page_title=APP_TITLE, layout="wide")
+    css()
+    st.title(APP_TITLE)
+    st.caption("Install packages, scaffold projects, run CLI-only bot demos, and validate environment readiness (GPU/VRAM + ports).")
+    tabs = st.tabs(["Environment", "Install Packages", "Ollama Test", "Scaffold Projects", "Bot Builder", "Chat", "Tests", "Deployment Demo"])
+    with tabs[0]: tab_environment()
+    with tabs[1]: tab_install()
+    with tabs[2]: tab_ollama_test()
+    with tabs[3]: tab_scaffold()
+    with tabs[4]: tab_bot_builder()
+    with tabs[5]: tab_chat()
+    with tabs[6]: tab_tests()
+    with tabs[7]: tab_deploy_demo()
+if __name__ == "__main__":
+    main()

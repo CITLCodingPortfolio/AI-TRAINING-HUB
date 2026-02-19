@@ -1,0 +1,29 @@
+{
+    "name": "IT Helpdesk Copilot",
+    "description": "Internal assistant grounded on IT KB content. Refuse if not in sources.",
+    "runtime": {
+      "provider": "ollama",
+      "base_url": "http://localhost:11434",
+      "model": "llama3.1",
+      "stream": true
+    },
+    "generation": {
+      "temperature": 0.2,
+      "top_p": 0.9,
+      "num_ctx": 8192,
+      "max_tokens": 512
+    },
+    "system": {
+      "prompt": "You are an internal IT support assistant. Always be concise. If you are not sure, say you don't know. If RAG sources are provided, cite them."
+    },
+    "agent": {
+      "framework": "none",
+      "tools": []
+    },
+    "rag": {
+      "enabled": false,
+      "collection": "",
+      "top_k": 5
+    }
+  }
+  

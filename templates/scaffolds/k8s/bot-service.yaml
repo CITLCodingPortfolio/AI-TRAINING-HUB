@@ -1,0 +1,31 @@
+﻿apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bot-service
+spec:
+  replicas: {{REPLICAS}}
+  selector:
+    matchLabels:
+      app: bot-service
+  template:
+    metadata:
+      labels:
+        app: bot-service
+    spec:
+      containers:
+        - name: bot-service
+          image: {{IMAGE}}
+          ports:
+            - containerPort: 8787
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bot-service
+spec:
+  selector:
+    app: bot-service
+  ports:
+    - port: 8787
+      targetPort: 8787
+      protocol: TCP

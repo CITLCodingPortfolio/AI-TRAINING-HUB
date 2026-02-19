@@ -1,0 +1,30 @@
+{
+  "name": "My Bot 1770123721",
+  "description": "Student-built assistant using local Ollama.",
+  "runtime": {
+    "provider": "ollama",
+    "base_url": "http://127.0.0.1:11434",
+    "model": "qwen2.5-coder:7b",
+    "stream": true
+  },
+  "generation": {
+    "temperature": 0.25,
+    "top_p": 0.9,
+    "num_ctx": 8192,
+    "max_tokens": 512
+  },
+  "system": {
+    "prompt": "You are a helpful assistant. If you don't know, say you don't know. If sources are provided, cite them."
+  },
+  "agent": {
+    "framework": "crewai",
+    "tools": [
+      "kb_search"
+    ]
+  },
+  "rag": {
+    "enabled": true,
+    "collection": "it-kb",
+    "top_k": 5
+  }
+}

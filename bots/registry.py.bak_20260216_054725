@@ -1,0 +1,29 @@
+﻿from dataclasses import dataclass
+from importlib import import_module
+from typing import Callable, Dict, List, Optional
+@dataclass(frozen=True)
+class BotInfo:
+    bot_id: str
+    title: str
+    color: str
+    module: str
+    entry: str = "run"
+BOTS: List[BotInfo] = [
+    BotInfo("fallback_bot", "Fallback Bot (smoke test)", "#2E86AB", "bots.fallback_bot"),
+    BotInfo("it_ticket_bot", "IT Ticket Triage Bot", "#00A676", "bots.it_ticket_bot"),
+    BotInfo("deploy_ops_bot", "Deploy/Ops Bot (Docker/K8s/SLURM)", "#B05A7A", "bots.deploy_ops_bot"),
+]
+def list_bots() -> List[Dict[str, str]]:
+    return [{"bot_id": b.bot_id, "title": b.title, "color": b.color} for b in BOTS]
+def get_bot(bot_id: str) -> BotInfo:
+    for b in BOTS:
+        if b.bot_id == bot_id:
+            return b
+    raise KeyError(f"Unknown bot_id: {bot_id}")
+def load_bot_callable(bot_id: str) -> Callable:
+    info = get_bot(bot_id)
+    mod = import_module(info.module)
+    fn = getattr(mod, info.entry, None)
+    if not callable(fn):
+        raise RuntimeError(f"Bot '{bot_id}' missing callable '{info.entry}()' in {info.module}")
+    return fn

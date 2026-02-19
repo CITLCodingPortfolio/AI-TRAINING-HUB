@@ -1,0 +1,318 @@
+import os
+import time
+import json
+import shutil
+from pathlib import Path
+from typing import Dict, Any, List
+import requests
+import streamlit as st
+# -----------------------------
+# CONFIG
+# -----------------------------
+APP_TITLE = "AI Training Hub (Local Ollama + Agent Frameworks)"
+APP_SUBTITLE = "Install packages, scaffold student apps, and run tests — all from one GUI."
+ROOT = Path(__file__).resolve().parents[1]
+TEMPLATES_DIR = ROOT / "templates"
+PROJECTS_DIR = ROOT / "projects"
+LOGS_DIR = ROOT / "logs"
+BOTS_DIR = ROOT / "bots"
+DATA_DIR = ROOT / "data"
+OLLAMA_BASE_URL = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
+# Ensure folders exist
+for p in [TEMPLATES_DIR, PROJECTS_DIR, LOGS_DIR, BOTS_DIR, DATA_DIR]:
+    p.mkdir(parents=True, exist_ok=True)
+st.set_page_config(page_title=APP_TITLE, layout="wide")
+# -----------------------------
+# Helpers
+# -----------------------------
+def safe_name(name: str) -> str:
+    return "".join(ch if ch.isalnum() or ch in "-_." else "-" for ch in name).strip("-")
+def list_templates():
+    return sorted([d.name for d in TEMPLATES_DIR.iterdir() if d.is_dir()])
+def copy_template(template_name: str, project_name: str) -> Path:
+    tmpl_path = TEMPLATES_DIR / template_name
+    if not tmpl_path.exists():
+        raise FileNotFoundError(f"Template not found: {tmpl_path}")
+    dest = PROJECTS_DIR / project_name
+    if dest.exists():
+        raise FileExistsError(f"Project already exists: {dest}")
+    shutil.copytree(tmpl_path, dest)
+    # Token replacement (optional)
+    token_map = {
+        "{{PROJECT_NAME}}": project_name,
+        "{{CREATED_AT}}": time.strftime("%Y-%m-%d %H:%M:%S"),
+    }
+    for file_path in dest.rglob("*"):
+        if file_path.is_file() and file_path.suffix.lower() in [".py", ".md", ".txt", ".json", ".yaml", ".yml"]:
+            try:
+                content = file_path.read_text(encoding="utf-8")
+                for k, v in token_map.items():
+                    content = content.replace(k, v)
+                file_path.write_text(content, encoding="utf-8")
+            except Exception:
+                pass
+    return dest
+def ollama_health():
+    try:
+        r = requests.get(f"{OLLAMA_BASE_URL}/api/tags", timeout=3)
+        return r.status_code == 200, r.json()
+    except Exception as e:
+        return False, str(e)
+def ollama_list_models() -> List[str]:
+    r = requests.get(f"{OLLAMA_BASE_URL}/api/tags", timeout=5)
+    r.raise_for_status()
+    models = [m["name"] for m in r.json().get("models", []) if "name" in m]
+    return sorted(models)
+def ollama_generate(model: str, prompt: str):
+    payload = {"model": model, "prompt": prompt, "stream": False}
+    r = requests.post(f"{OLLAMA_BASE_URL}/api/generate", json=payload, timeout=60)
+    r.raise_for_status()
+    return r.json().get("response", "")
+def ollama_chat(model: str, messages: List[Dict[str, str]], options: Dict[str, Any], stream: bool = False) -> str:
+    payload = {"model": model, "messages": messages, "stream": stream, "options": options or {}}
+    r = requests.post(f"{OLLAMA_BASE_URL}/api/chat", json=payload, timeout=120)
+    r.raise_for_status()
+    return r.json()["message"]["content"]
+# Bot spec storage
+def list_bot_specs() -> List[Path]:
+    return sorted(BOTS_DIR.glob("*.json"))
+def load_bot_spec(path: Path) -> Dict[str, Any]:
+    return json.loads(path.read_text(encoding="utf-8"))
+def save_bot_spec(spec: Dict[str, Any]) -> Path:
+    if not spec.get("name"):
+        raise ValueError("Bot name is required")
+    filename = safe_name(spec["name"]).lower() + ".json"
+    out = BOTS_DIR / filename
+    out.write_text(json.dumps(spec, indent=2), encoding="utf-8")
+    return out
+# -----------------------------
+# UI Header
+# -----------------------------
+st.title(APP_TITLE)
+st.caption(APP_SUBTITLE)
+tabs = st.tabs(["Environment", "Install Packages", "Ollama Test", "Scaffold Projects", "Bot Builder", "Chat", "Tests"])
+# -----------------------------
+# TAB: Environment
+# -----------------------------
+with tabs[0]:
+    st.header("Environment")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.subheader("Paths")
+        st.code(str(ROOT))
+        st.write("Templates:", str(TEMPLATES_DIR))
+        st.write("Projects:", str(PROJECTS_DIR))
+        st.write("Bots:", str(BOTS_DIR))
+        st.write("Data:", str(DATA_DIR))
+        st.write("Logs:", str(LOGS_DIR))
+    with col2:
+        st.subheader("Runtime")
+        st.write("Python:", os.sys.version.split()[0])
+        st.write("OLLAMA_HOST:", OLLAMA_BASE_URL)
+# -----------------------------
+# TAB: Install Packages
+# -----------------------------
+with tabs[1]:
+    st.header("Install Packages")
+    st.info(
+        "This tab is intentionally minimal. In most colleges, package installs are controlled via IT. "
+        "Use this area to document approved steps or run safe checks."
+    )
+    st.write("✅ Tip: Provide a prebuilt requirements.txt in templates, and have students install in their venv.")
+# -----------------------------
+# TAB: Ollama Test
+# -----------------------------
+with tabs[2]:
+    st.header("Ollama Test")
+    ok, info = ollama_health()
+    if ok:
+        st.success("Ollama is reachable.")
+        tags = info.get("models", [])
+        models = [m.get("name") for m in tags] if isinstance(tags, list) else []
+    else:
+        st.error("Ollama is not reachable.")
+        st.code(str(info))
+        models = []
+    if models:
+        model = st.selectbox("Model", models)
+        prompt = st.text_area("Prompt", value="Hello! Please respond with a short campus-friendly greeting.")
+        if st.button("Run Test Prompt"):
+            try:
+                out = ollama_generate(model, prompt)
+                st.subheader("Response")
+                st.write(out)
+            except Exception as e:
+                st.error(f"Error: {e}")
+    else:
+        st.warning("No models found in Ollama. Try: `ollama pull llama3.1` (or your custom build name).")
+# -----------------------------
+# TAB: Scaffold Projects
+# -----------------------------
+with tabs[3]:
+    st.header("Create Student Project Templates")
+    default_name = f"student-app-{int(time.time())}"
+    project_name = st.text_input("New project name", value=default_name)
+    template_list = list_templates()
+    if not template_list:
+        st.warning("No templates found. Add at least one folder under /templates.")
+        st.write("Expected: AI-Training-Hub/templates/<TemplateName>/ ...")
+    else:
+        template = st.selectbox("Template", template_list)
+        if st.button("Create Project"):
+            proj = safe_name(project_name)
+            try:
+                created_path = copy_template(template, proj)
+                st.success(f"Created: {created_path}")
+                st.code(str(created_path))
+            except Exception as e:
+                st.error(str(e))
+# -----------------------------
+# TAB: Bot Builder
+# -----------------------------
+with tabs[4]:
+    st.header("Bot Builder")
+    st.caption("Create and save offline chatbot/agent configurations as JSON (and optionally generate an Ollama Modelfile).")
+    # Load available ollama models
+    models = []
+    try:
+        models = ollama_list_models()
+    except Exception as e:
+        st.warning("Could not list Ollama models. Is Ollama running?")
+        st.code(str(e))
+    colA, colB = st.columns(2)
+    with colA:
+        bot_name = st.text_input("Bot name", value=f"My Bot {int(time.time())}")
+        bot_desc = st.text_area("Description", value="Student-built assistant using local Ollama.", height=80)
+        model = st.selectbox("Ollama model", models if models else ["(no models found)"])
+        base_url = st.text_input("Ollama base_url", value=OLLAMA_BASE_URL)
+        framework = st.selectbox("Agent framework", ["none", "langgraph", "crewai", "autogen"])
+        tool_choices = ["kb_search", "rag_retriever", "calculator", "file_lookup"]
+        tools = st.multiselect("Tools (starter set)", tool_choices, default=[])
+    with colB:
+        st.subheader("Generation Settings")
+        temperature = st.slider("temperature", 0.0, 1.5, 0.2, 0.05)
+        top_p = st.slider("top_p", 0.1, 1.0, 0.9, 0.05)
+        num_ctx = st.selectbox("context window (num_ctx)", [2048, 4096, 8192, 16384], index=2)
+        max_tokens = st.selectbox("max_tokens", [128, 256, 512, 1024, 2048], index=2)
+        st.subheader("RAG Settings")
+        rag_enabled = st.checkbox("Enable RAG", value=False)
+        rag_collection = st.text_input("RAG collection name", value="it-kb" if rag_enabled else "")
+        rag_top_k = st.slider("RAG top_k", 1, 15, 5)
+    system_prompt = st.text_area(
+        "System prompt",
+        value="You are a helpful assistant. If you don't know, say you don't know. If sources are provided, cite them.",
+        height=140
+    )
+    spec = {
+        "name": bot_name.strip(),
+        "description": bot_desc.strip(),
+        "runtime": {
+            "provider": "ollama",
+            "base_url": base_url.strip(),
+            "model": model,
+            "stream": True
+        },
+        "generation": {
+            "temperature": float(temperature),
+            "top_p": float(top_p),
+            "num_ctx": int(num_ctx),
+            "max_tokens": int(max_tokens)
+        },
+        "system": {
+            "prompt": system_prompt
+        },
+        "agent": {
+            "framework": framework,
+            "tools": tools
+        },
+        "rag": {
+            "enabled": bool(rag_enabled),
+            "collection": rag_collection.strip(),
+            "top_k": int(rag_top_k)
+        }
+    }
+    st.divider()
+    st.subheader("Preview Spec")
+    st.json(spec)
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if st.button("Save Bot Spec (JSON)"):
+            try:
+                out = save_bot_spec(spec)
+                st.success(f"Saved: {out}")
+                st.code(str(out))
+            except Exception as e:
+                st.error(str(e))
+    with col2:
+        st.caption("Optional: generate an Ollama Modelfile that bakes in the system prompt.")
+        if st.button("Generate Modelfile"):
+            base_model = model
+            modelfile = f"""FROM {base_model}
+SYSTEM \"\"\"{system_prompt.replace('"', '\\"')}\"\"\"
+PARAMETER temperature {temperature}
+PARAMETER top_p {top_p}
+PARAMETER num_ctx {num_ctx}
+"""
+            mf_path = BOTS_DIR / (safe_name(bot_name).lower() + ".Modelfile")
+            mf_path.write_text(modelfile, encoding="utf-8")
+            st.success(f"Created Modelfile: {mf_path}")
+            st.code(str(mf_path))
+    with col3:
+        st.caption("After generating Modelfile, you can build a new Ollama model name.")
+        st.code("ollama create my-bot -f bots/my-bot.Modelfile", language="bash")
+# -----------------------------
+# TAB: Chat
+# -----------------------------
+with tabs[5]:
+    st.header("Chat")
+    st.caption("Run a saved bot spec locally (offline) using Ollama.")
+    bot_files = list_bot_specs()
+    if not bot_files:
+        st.warning("No bot specs found yet. Go to Bot Builder and click 'Save Bot Spec (JSON)'.")
+    else:
+        selected = st.selectbox("Select a bot", bot_files, format_func=lambda p: p.stem)
+        spec = load_bot_spec(selected)
+        st.write(f"**Bot:** {spec.get('name')}")
+        st.write(spec.get("description", ""))
+        # reset chat when switching bots
+        if "chat_messages" not in st.session_state or st.session_state.get("active_bot") != str(selected):
+            st.session_state.chat_messages = [{"role": "system", "content": spec["system"]["prompt"]}]
+            st.session_state.active_bot = str(selected)
+        # show messages (hide system)
+        for m in st.session_state.chat_messages:
+            if m["role"] == "system":
+                continue
+            with st.chat_message(m["role"]):
+                st.write(m["content"])
+        user_msg = st.chat_input("Type your message...")
+        if user_msg:
+            st.session_state.chat_messages.append({"role": "user", "content": user_msg})
+            with st.chat_message("user"):
+                st.write(user_msg)
+            options = {
+                "temperature": spec["generation"]["temperature"],
+                "top_p": spec["generation"]["top_p"],
+                "num_ctx": spec["generation"]["num_ctx"],
+                "num_predict": spec["generation"]["max_tokens"]
+            }
+            try:
+                reply = ollama_chat(
+                    model=spec["runtime"]["model"],
+                    messages=st.session_state.chat_messages,
+                    options=options,
+                    stream=False
+                )
+            except Exception as e:
+                reply = f"ERROR calling Ollama: {e}"
+            st.session_state.chat_messages.append({"role": "assistant", "content": reply})
+            with st.chat_message("assistant"):
+                st.write(reply)
+# -----------------------------
+# TAB: Tests
+# -----------------------------
+with tabs[6]:
+    st.header("Tests")
+    st.info("Starter tests: verify templates exist and Ollama is reachable.")
+    st.write("Templates found:", len(list_templates()))
+    ok, _ = ollama_health()
+    st.write("Ollama reachable:", ok)

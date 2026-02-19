@@ -1,0 +1,17 @@
+{
+  "core": [
+    { "name": "streamlit", "pip": "streamlit", "purpose": "Runs the AI Training Hub GUI" },
+    { "name": "requests", "pip": "requests", "purpose": "Connects to Ollama REST API" },
+    { "name": "pyyaml", "pip": "pyyaml", "purpose": "Reads/writes YAML configs (optional)" }
+  ],
+  "agent_frameworks": [
+    { "name": "langgraph", "pip": "langgraph", "purpose": "Graph-based agent workflows (state + tool routing)" },
+    { "name": "crewai", "pip": "crewai", "purpose": "Role-based multi-agent teams (agents + tasks)" },
+    { "name": "autogen", "pip": "pyautogen", "purpose": "Multi-agent conversations (experimental)" }
+  ],
+  "rag": [
+    { "name": "chromadb", "pip": "chromadb", "purpose": "Local vector DB for offline RAG" },
+    { "name": "sentence_transformers", "pip": "sentence-transformers", "purpose": "Embeddings model for RAG" },
+    { "name": "pypdf", "pip": "pypdf", "purpose": "PDF ingestion" }
+  ]
+}

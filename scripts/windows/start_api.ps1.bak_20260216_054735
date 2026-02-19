@@ -1,0 +1,35 @@
+﻿param(
+  [int]$Port = 8787,
+  [int]$MaxTries = 50
+)
+$ErrorActionPreference = "Stop"
+$Repo = (Get-Location).Path
+$py = Join-Path $Repo ".venv\Scripts\python.exe"
+function Test-PortFree([int]$p) {
+  try {
+    $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, $p)
+    $listener.Start()
+    $listener.Stop()
+    return $true
+  } catch {
+    return $false
+  }
+}
+function Get-FreePort([int]$start, [int]$tries) {
+  for ($p = $start; $p -lt ($start + $tries); $p++) {
+    if (Test-PortFree $p) { return $p }
+  }
+  throw "No free port found in range $start..$($start+$tries-1)"
+}
+if (-not (Test-Path $py)) {
+  Write-Host "Venv not found; running setup..." -ForegroundColor Yellow
+  & (Join-Path $Repo "scripts\windows\setup.ps1")
+}
+if (-not (Test-PortFree $Port)) {
+  Write-Host "API port $Port is busy. Selecting next free port..." -ForegroundColor Yellow
+  $Port = Get-FreePort $Port $MaxTries
+}
+$env:AI_TRAINING_HUB_API_PORT = "$Port"
+Write-Host "Starting Faux API on port $Port ..." -ForegroundColor Cyan
+Write-Host "Health: http://127.0.0.1:$Port/health" -ForegroundColor DarkGray
+& $py -m bots.api_server --port $Port

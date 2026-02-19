@@ -1,0 +1,2 @@
+-r hub.txt
+pytest

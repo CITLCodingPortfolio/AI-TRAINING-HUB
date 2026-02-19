@@ -1,0 +1,20 @@
+param(
+  [Parameter(Mandatory=$true)][string]$Bot,
+  [string]$InputFile = "",
+  [string[]]$File = @(),
+  [string]$Text = "",
+  [string]$Mode = "triage",
+  [string]$Target = "all"
+)
+$ErrorActionPreference = "Stop"
+$Repo = Resolve-Path (Join-Path $PSScriptRoot "..\..")
+$py = Join-Path $Repo ".venv\Scripts\python.exe"
+if (!(Test-Path $py)) { & (Join-Path $Repo "scripts\windows\setup.ps1") }
+$cmd = @($py, "-m", "bots.run_bot", "--bot", $Bot)
+if ($Text) { $cmd += @("--text", $Text) }
+if ($InputFile) { $cmd += @("--input-file", $InputFile) }
+if ($Mode) { $cmd += @("--mode", $Mode) }
+if ($Target) { $cmd += @("--target", $Target) }
+foreach ($f in $File) { $cmd += @("--file", $f) }
+Write-Host ("RUN: " + ($cmd -join " ")) -ForegroundColor DarkGray
+& $cmd

@@ -1,0 +1,17 @@
+param()
+$ErrorActionPreference = "Stop"
+$Repo = Resolve-Path (Join-Path $PSScriptRoot "..\..")
+Write-Host "== AI Training Hub Setup (Windows) ==" -ForegroundColor Cyan
+Write-Host "Repo: $Repo" -ForegroundColor DarkGray
+$py = Join-Path $Repo ".venv\Scripts\python.exe"
+if (!(Test-Path $py)) {
+  Write-Host "Creating venv..." -ForegroundColor Yellow
+  & python -m venv (Join-Path $Repo ".venv")
+}
+& $py -m pip install -U pip setuptools wheel | Out-Null
+# Install requirements (if internet available, pulls; if offline, uses cache if present)
+Write-Host "Installing deps..." -ForegroundColor Cyan
+& $py -m pip install -r (Join-Path $Repo "requirements\hub.txt")
+& $py -m pip install -r (Join-Path $Repo "requirements\dev.txt")
+Write-Host "Setup complete." -ForegroundColor Green
+Write-Host "Run: .\scripts\windows\run.ps1" -ForegroundColor White

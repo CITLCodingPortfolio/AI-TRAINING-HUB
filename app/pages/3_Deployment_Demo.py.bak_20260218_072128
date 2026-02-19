@@ -1,0 +1,105 @@
+﻿import json
+import hashlib
+from pathlib import Path
+import streamlit as st
+import requests
+REPO = Path(__file__).resolve().parents[2]
+LOG  = REPO / "logs" / "deploy_runs.jsonl"
+API  = "http://127.0.0.1:8787"
+st.set_page_config(page_title="Deployment Demo", layout="wide")
+st.title("Deployment Demo (Faux Local Server + CLI Runs)")
+st.markdown("""
+This page demonstrates **production-like behavior**:
+1) You run bots from **CLI only** (files + args).  
+2) The **local API server** logs each run.  
+3) This page renders results with **bot-specific alternating colors**.
+**Start server (Windows):** `.\scripts\windows\demo_server.ps1`  
+**Start server (Ubuntu):** `bash scripts/linux/demo_server.sh`
+**Run from CLI (Windows):** `.\scripts\windows\run_bot.ps1 -Bot <bot_id> -InputFile .\data\demo\sample_ticket.txt -File .\data\demo\policy.txt`  
+**Run from CLI (Ubuntu):** `bash scripts/linux/run_bot.sh --bot <bot_id> --input-file data/demo/sample_ticket.txt --file data/demo/policy.txt`
+""")
+def api_ok():
+    try:
+        r = requests.get(API + "/health", timeout=1.5)
+        return r.status_code == 200
+    except Exception:
+        return False
+def hex_to_rgb(h):
+    h = h.lstrip("#")
+    return tuple(int(h[i:i+2], 16) for i in (0,2,4))
+def rgb_to_hex(rgb):
+    return "#{:02x}{:02x}{:02x}".format(*rgb)
+def mix(c1, c2, t):
+    r1,g1,b1 = hex_to_rgb(c1)
+    r2,g2,b2 = hex_to_rgb(c2)
+    return rgb_to_hex((int(r1+(r2-r1)*t), int(g1+(g2-g1)*t), int(b1+(b2-b1)*t)))
+PALETTE = ["#e3f2fd", "#e8f5e9", "#fff3e0", "#f3e5f5", "#fce4ec", "#e0f7fa", "#f1f8e9"]
+def color_for_bot(bot_id: str, alt: bool):
+    n = int(hashlib.sha256(bot_id.encode("utf-8")).hexdigest(), 16)
+    base = PALETTE[n % len(PALETTE)]
+    # alternate shade
+    return mix(base, "#ffffff", 0.15) if alt else mix(base, "#ffffff", 0.35)
+st.markdown("""
+<style>
+.botbox {
+  padding: 0.85rem 1rem;
+  border-radius: 14px;
+  border: 1px solid rgba(0,0,0,0.08);
+  margin: 0.5rem 0;
+}
+.botmeta {
+  font-size: 0.85rem;
+  opacity: 0.78;
+  margin-bottom: 0.35rem;
+}
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  white-space: pre-wrap;
+}
+</style>
+""", unsafe_allow_html=True)
+colA, colB = st.columns([1, 1])
+with colA:
+    st.subheader("Server Status")
+    st.write("API:", API)
+    st.success("UP") if api_ok() else st.warning("DOWN (start it in a terminal)")
+with colB:
+    st.subheader("Bots")
+    bots = []
+    try:
+        r = requests.get(API + "/bots", timeout=2)
+        bots = r.json() if r.status_code == 200 else []
+    except Exception:
+        bots = []
+    if bots:
+        st.write([b["bot_id"] for b in bots])
+    else:
+        st.info("No bot list available (server down). Start the demo server to list bots.")
+st.divider()
+st.subheader("Latest Runs (from CLI)")
+if not LOG.exists():
+    st.info(f"No run log yet: {LOG}\nRun the server + run a bot from CLI to populate logs.")
+    st.stop()
+# Read last N lines safely
+N = st.slider("How many runs to show", 5, 100, 25, 5)
+lines = LOG.read_text(encoding="utf-8", errors="ignore").splitlines()[-N:]
+for i, line in enumerate(reversed(lines)):
+    try:
+        rec = json.loads(line)
+    except Exception:
+        continue
+    bot_id = rec.get("bot_id","unknown")
+    ts = rec.get("ts_utc","")
+    out = rec.get("output_text","")
+    inp = rec.get("input_preview","")
+    files = ", ".join(rec.get("files",[]))
+    bg = color_for_bot(bot_id, alt=(i % 2 == 1))
+    st.markdown(
+        f"""
+        <div class="botbox" style="background:{bg}">
+          <div class="botmeta"><b>{bot_id}</b> • {ts} • files: {files or "(none)"}</div>
+          <div class="mono"><b>INPUT</b>\n{inp}\n\n<b>OUTPUT</b>\n{out}</div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )

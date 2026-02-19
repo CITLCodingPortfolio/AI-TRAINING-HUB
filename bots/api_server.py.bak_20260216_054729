@@ -1,0 +1,25 @@
+﻿import argparse
+from fastapi import FastAPI
+from pydantic import BaseModel
+from bots.registry import list_bots, load_bot_callable
+app = FastAPI(title="AI-Training-Hub Faux Bot Server")
+class RunReq(BaseModel):
+    bot_id: str
+    prompt: str = ""
+    files: dict = {}
+@app.get("/health")
+def health():
+    return {"ok": True, "bots": list_bots()}
+@app.post("/run")
+def run(req: RunReq):
+    fn = load_bot_callable(req.bot_id)
+    return {"bot_id": req.bot_id, "output": fn(req.prompt, req.files)}
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--host", default="127.0.0.1")
+    ap.add_argument("--port", type=int, default=8787)
+    args = ap.parse_args()
+    import uvicorn
+    uvicorn.run("bots.api_server:app", host=args.host, port=args.port, log_level="info")
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,24 @@
+﻿param(
+  [switch]$RecreateVenv
+)
+$ErrorActionPreference = "Stop"
+$Repo = (Get-Location).Path
+Write-Host "== AI-Training-Hub Setup (Windows) ==" -ForegroundColor Cyan
+Write-Host "Repo: $Repo" -ForegroundColor DarkGray
+# 1) Python
+$pyCmd = Get-Command python -ErrorAction SilentlyContinue
+if (-not $pyCmd) { throw "Python not found on PATH. Install Python 3.10+ then reopen terminal." }
+# 2) venv
+$venv = Join-Path $Repo ".venv"
+$py = Join-Path $venv "Scripts\python.exe"
+if ($RecreateVenv -and (Test-Path $venv)) {
+  Remove-Item -Recurse -Force $venv
+}
+if (-not (Test-Path $py)) {
+  Write-Host "Creating venv..." -ForegroundColor Yellow
+  python -m venv .venv
+}
+& $py -m pip install -U pip
+& $py -m pip install -r (Join-Path $Repo "requirements\requirements-hub.txt")
+Write-Host "Setup complete." -ForegroundColor Green
+Write-Host "Run GUI: .\scripts\windows\run.ps1" -ForegroundColor White

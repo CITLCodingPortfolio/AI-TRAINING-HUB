@@ -1,0 +1,94 @@
+PENUMBRAL BOX SCRIPT TEMPLATE (HENOSIS) — v1
+======================================================
+
+PURPOSE
+- Generate narrative scenes as ordered “BOXES” with consistent formatting for quick scripting + review.
+- Keep occult layer literary: implied by image-objects, etiquette, metaphor, and subtext — not name-dropping.
+
+HARD RULES (DO NOT BREAK)
+- NO HTML / NO RICH TEXT / NO MARKDOWN TABLES.
+- NO extra unicode icons except:
+  - BOX markers: 🔷
+  - Character color squares: 🟦 🟩 🟨 🟥 🟧 🟪 (use only what the project defines)
+- Dialogue MUST be indented exactly as shown (4 spaces).
+- Each BOX MUST include:
+  1) BIG BOX HEADER (with diamonds + box number)
+  2) TITLE LINE
+  3) UNDERLINE made of "="
+  4) DIALOGUE section (indented lines)
+  5) ACTIONS section (indented bullet lines)
+
+COLOR KEY (editable)
+- 🟦 = STRIA
+- 🟩 = ANTHEON
+- 🟨 = KYMATA (telepathy)
+(If more characters appear, assign a unique square and KEEP IT CONSISTENT.)
+
+STYLE “MATERIALS” CHECKLIST (what every scene should carry)
+1) Character Voice Integrity
+   - Each character speaks from their archetypal function (no generic therapy voice).
+   - If “occult,” it’s a felt metaphor: crooked crown, sealed book opening, threshold-light, etc.
+
+2) Interiority Without Exposition
+   - Emotional truth appears through: avoidance, timing, grip, misdirection, understatement.
+   - Avoid over-explaining motive; let action + phrasing carry it.
+
+3) Occult Layer: Literary, Not Glossary
+   - Never dump proper nouns (“Malkuth,” etc.) unless explicitly requested.
+   - Use objects and actions that imply correspondences:
+     - “wrong crown,” “cliff etiquette,” “sealed book opens,” “hinge-light,” “the Work’s black kettle / first rinse,” etc.
+   - One “anchor image-object” per BOX is ideal.
+
+4) Resolution Logic
+   - The scene must pivot: a misunderstanding is softened by a concrete kindness (gift/tool/gesture),
+     and the guarded character is allowed one notch of openness (not total transformation).
+
+FORMAT TEMPLATE (COPY/PASTE)
+----------------------------
+
+🔷🔷🔷 BOX {NN} 🔷🔷🔷
+{TITLE}
+====================
+
+DIALOGUE
+    {COLOR} {NAME}: (stage direction) {full line of dialogue}
+    {COLOR} {NAME}: {full line of dialogue}
+    {COLOR} {NAME}: {full line of dialogue}
+
+ACTIONS
+    - {action beat written plainly}
+    - {action beat written plainly}
+    - {action beat written plainly}
+
+NOTES ON DIALOGUE LINES
+- Keep each dialogue line as a complete sentence whenever possible.
+- Avoid breaking one character’s thought into multiple lines unless it’s a deliberate rhythm choice.
+
+MICRO-CONVENTIONS
+- Telepathy is still dialogue:
+    🟨 KYMATA: (telepathic, to X) {line}
+- Parentheticals are short and actor-friendly:
+    (deflated, ears down)
+    (looks away, blushing)
+    (softly)
+- “ACTIONS” are for what the camera/reader can see.
+
+EXAMPLE (REFERENCE SNIPPET — STRUCTURE ONLY)
+--------------------------------------------
+
+🔷🔷🔷 BOX 04 🔷🔷🔷
+THE FINISH (BROTHERS UNDER SCORPIO)
+===================================
+
+DIALOGUE
+    🟦 STRIA: (fist closes too quickly) Why are you acting like you already know me?
+    🟩 ANTHEON: Because I recognize the weather.
+    🟩 ANTHEON: You and I—and Kymata too—we’re Scorpio’s boys. Same deep water. Same scar-language.
+    🟩 ANTHEON: So no: you’re not walking in on something you can’t belong to.
+    🟩 ANTHEON: You’re walking into kin.
+
+ACTIONS
+    - Antheon collapses the triangle into family: “kin,” not rivalry.
+    - Stria’s jealousy is re-labeled as loyalty seeking a home.
+
+END

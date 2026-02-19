@@ -1,0 +1,15 @@
+﻿{
+  "tiers": {
+    "4-6GB": [
+      {"id": "phi3:mini", "label": "Phi-3 Mini (fast)", "use": "Intro chat + speed demos", "notes": "Great on modest GPUs"},
+      {"id": "qwen2.5:7b-instruct", "label": "Qwen2.5 7B Instruct", "use": "General assistant", "notes": "Strong general performance"}
+    ],
+    "8-12GB": [
+      {"id": "gemma2:9b", "label": "Gemma 2 9B", "use": "High quality responses", "notes": "Efficient for size"},
+      {"id": "qwen2.5-coder:7b", "label": "Qwen2.5 Coder 7B", "use": "Coding labs", "notes": "Great for programming"}
+    ],
+    "advanced": [
+      {"id": "kimi-k2.5", "label": "Kimi K2.5 (advanced)", "use": "Agentic experiments", "notes": "Confirm fit for your lab hardware"}
+    ]
+  }
+}

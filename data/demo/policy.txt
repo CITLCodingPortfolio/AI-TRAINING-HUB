@@ -1,0 +1,4 @@
+VPN Policy (excerpt):
+- MFA required.
+- Access must be approved by manager.
+- Devices must have up-to-date endpoint protection.

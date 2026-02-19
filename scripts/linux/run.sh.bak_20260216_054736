@@ -1,0 +1,28 @@
+﻿#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/../.."
+source .venv/bin/activate
+PORT="${1:-8502}"
+# Find a free port using Python (most reliable across Ubuntu installs)
+FREE_PORT="$(python - <<'PY'
+import os, socket
+start = int(os.environ.get("PORT","8502"))
+for p in range(start, start+50):
+    s = socket.socket()
+    try:
+        s.bind(("127.0.0.1", p))
+        s.close()
+        print(p)
+        raise SystemExit(0)
+    except OSError:
+        pass
+    finally:
+        try: s.close()
+        except: pass
+raise SystemExit("No free port found")
+PY
+)"
+export AI_TRAINING_HUB_PORT="$FREE_PORT"
+echo "Launching Streamlit on port $FREE_PORT ..."
+echo "URL: http://localhost:$FREE_PORT"
+python -m streamlit run app/hub.py --server.port "$FREE_PORT"

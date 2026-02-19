@@ -1,0 +1,39 @@
+﻿from __future__ import annotations
+from dataclasses import dataclass, asdict
+from typing import Any, Dict, List
+def default_spec() -> Dict[str, Any]:
+    return {
+        "name": "New Bot",
+        "description": "",
+        "runtime": {"provider": "ollama", "base_url": "http://localhost:11434", "model": "", "stream": True},
+        "generation": {"temperature": 0.2, "top_p": 0.9, "num_ctx": 8192, "max_tokens": 512},
+        "system": {"prompt": "You are a helpful assistant. If you don't know, say you don't know."},
+        "identity": {"role": "Tutor", "goal": "", "backstory": ""},
+        "agent": {
+            "framework": "none",          # none | langgraph | crewai | autogen
+            "mode": "single",             # single | planner_executor | verifier
+            "tools": [],                  # calculator | rag_retriever | kb_search | file_lookup
+            "crew": {"agents": [], "tasks": []},     # for crewai
+            "langgraph": {"nodes": ["planner", "tool", "writer", "verifier"]},  # simple starter
+            "autogen": {"pattern": "two_agent"}       # two_agent | group_chat
+        },
+        "rag": {
+            "enabled": False,
+            "collection": "default",
+            "top_k": 5,
+            "citations": True
+        },
+        "safety": {
+            "refuse_if_unsure": True,
+            "policy_tone": "college_safe",  # college_safe | neutral | strict
+            "no_personal_data": True
+        },
+        "export": {"include_requirements": True}
+    }
+def validate_spec(spec: Dict[str, Any]) -> List[str]:
+    errors = []
+    if not spec.get("name"):
+        errors.append("name is required")
+    if spec.get("runtime", {}).get("provider") != "ollama":
+        errors.append("only ollama provider supported in this hub version")
+    return errors

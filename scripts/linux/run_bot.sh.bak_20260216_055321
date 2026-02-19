@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/../.."
+source .venv/bin/activate
+BOT="${1:?bot_id required}"
+shift || true
+python -m bots.run_bot --bot "$BOT" "$@"

@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/../.."
+echo "== AI Training Hub Setup (Ubuntu) =="
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -U pip setuptools wheel
+python -m pip install -r requirements/hub.txt
+python -m pip install -r requirements/dev.txt
+echo "Setup complete."
+echo "Run: bash scripts/linux/run.sh"

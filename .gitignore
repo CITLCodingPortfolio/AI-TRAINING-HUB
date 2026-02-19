@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.pyc
+node_modules/
+.cache/
+tmp/
+*.log
+
+# Ollama blobs (NEVER COMMIT)
+.ollama/
+ollama/models/
+**/ollama/models/
+**/blobs/

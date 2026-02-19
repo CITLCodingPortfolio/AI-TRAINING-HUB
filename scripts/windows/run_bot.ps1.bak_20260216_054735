@@ -1,0 +1,9 @@
+﻿param(
+  [string]$Bot = "it_ticket_bot",
+  [string]$InputFile = "data\demo\sample_ticket.txt"
+)
+$ErrorActionPreference = "Stop"
+$Repo = (Get-Location).Path
+$py = Join-Path $Repo ".venv\Scripts\python.exe"
+if (-not (Test-Path $py)) { & (Join-Path $Repo "scripts\windows\setup.ps1"); }
+& $py -m bots.run_cli --bot $Bot --input-file $InputFile --file "data\demo\policy.txt"

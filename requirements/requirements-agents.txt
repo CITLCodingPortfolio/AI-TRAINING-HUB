@@ -1,0 +1,5 @@
+﻿langchain>=0.2
+langchain-community>=0.2
+langgraph>=0.2
+crewai>=1.9.3
+pyautogen>=0.2

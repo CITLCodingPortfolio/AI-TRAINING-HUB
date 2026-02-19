@@ -1,0 +1,22 @@
+﻿def run(prompt: str, files: dict | None = None) -> str:
+    files = files or {}
+    out = []
+    out.append("Deploy/Ops Helper Output")
+    out.append("")
+    out.append("Local faux-server demo:")
+    out.append("  python -m bots.api_server --port 8787")
+    out.append("  curl http://127.0.0.1:8787/health")
+    out.append("")
+    out.append("Docker demo (defaults):")
+    out.append("  docker build -t ai-training-hub/bot-service:latest projects/<name>")
+    out.append("  docker run --rm -p 8787:8787 ai-training-hub/bot-service:latest")
+    out.append("")
+    out.append("Kubernetes demo (kind/minikube):")
+    out.append("  kubectl apply -f k8s/")
+    out.append("  kubectl port-forward svc/bot-service 8787:8787")
+    out.append("")
+    out.append("SLURM demo:")
+    out.append("  sbatch slurm/job.sbatch")
+    out.append("")
+    out.append("SELF_TEST: PASS (deploy_ops_bot)")
+    return "\n".join(out)

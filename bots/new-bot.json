@@ -1,0 +1,11 @@
+{
+  "name": "New Bot",
+  "description": "Describe what this bot does",
+  "system_prompt": "You are a helpful assistant.",
+  "model": "gpt-4o-mini",
+  "tools": [],
+  "knowledge": [],
+  "settings": {
+    "temperature": 0.3
+  }
+}

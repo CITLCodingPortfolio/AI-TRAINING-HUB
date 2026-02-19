@@ -1,0 +1,53 @@
+﻿param(
+  [int]$Port = 8502,
+  [int]$MaxTries = 50
+)
+$ErrorActionPreference = "Stop"
+$Repo = (Get-Location).Path
+$py = Join-Path $Repo ".venv\Scripts\python.exe"
+function Get-PortOwner([int]$p) {
+  try {
+    $c = Get-NetTCPConnection -LocalPort $p -State Listen -ErrorAction Stop | Select-Object -First 1
+    if ($c) {
+      $proc = Get-Process -Id $c.OwningProcess -ErrorAction SilentlyContinue
+      if ($proc) { return "$($proc.ProcessName) (PID $($proc.Id))" }
+      return "PID $($c.OwningProcess)"
+    }
+  } catch {}
+  return $null
+}
+function Test-PortFree([int]$p) {
+  try {
+    $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, $p)
+    $listener.Start()
+    $listener.Stop()
+    return $true
+  } catch {
+    return $false
+  }
+}
+function Get-FreePort([int]$start, [int]$tries) {
+  for ($p = $start; $p -lt ($start + $tries); $p++) {
+    if (Test-PortFree $p) { return $p }
+  }
+  throw "No free port found in range $start..$($start+$tries-1)"
+}
+if (-not (Test-Path $py)) {
+  Write-Host "Venv not found; running setup..." -ForegroundColor Yellow
+  & (Join-Path $Repo "scripts\windows\setup.ps1")
+}
+# Auto-select a free port if requested port is busy
+if (-not (Test-PortFree $Port)) {
+  $owner = Get-PortOwner $Port
+  if ($owner) {
+    Write-Host "Port $Port is busy (owner: $owner). Selecting next free port..." -ForegroundColor Yellow
+  } else {
+    Write-Host "Port $Port is busy. Selecting next free port..." -ForegroundColor Yellow
+  }
+  $Port = Get-FreePort $Port $MaxTries
+}
+# Export for the app/UI if needed
+$env:AI_TRAINING_HUB_PORT = "$Port"
+Write-Host "Launching Streamlit on port $Port ..." -ForegroundColor Cyan
+Write-Host "URL: http://localhost:$Port" -ForegroundColor DarkGray
+& $py -m streamlit run (Join-Path $Repo "app\hub.py") --server.port $Port

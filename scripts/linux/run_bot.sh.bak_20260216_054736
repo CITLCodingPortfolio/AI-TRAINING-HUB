@@ -1,0 +1,5 @@
+﻿#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/../.."
+source .venv/bin/activate
+python -m bots.run_cli --bot it_ticket_bot --input-file data/demo/sample_ticket.txt --file data/demo/policy.txt
