@@ -28,23 +28,15 @@ def _probe_nvidia() -> List[Dict[str, Any]]:
         if len(parts) != 5:
             continue
         name, temp, util, mem_total, mem_used = parts
-
         total = _safe_int(mem_total)
         used  = _safe_int(mem_used)
         free  = (total - used) if (total is not None and used is not None) else None
-        t_c   = _safe_int(temp)
-
         gpus.append({
             "vendor": "nvidia",
             "name": name,
-
-            # Provide BOTH names to match hub variants:
-            "temp_c": t_c,
-            "temperature_c": t_c,
-
+            "temperature_c": _safe_int(temp),
             "utilization_pct": _safe_int(util),
-
-            # VRAM fields Hub expects:
+            # Hub expected names:
             "vram_total_mb": total,
             "vram_used_mb": used,
             "vram_free_mb": free,

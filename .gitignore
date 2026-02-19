@@ -1,13 +1,46 @@
-.venv/
+# Python
 __pycache__/
 *.pyc
-node_modules/
-.cache/
-tmp/
-*.log
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.dist/
+.build/
+*.egg
 
-# Ollama blobs (NEVER COMMIT)
+# Virtual env
+.venv/
+venv/
+ENV/
+.env
+.env.*
+
+# Streamlit / local state
+.streamlit/
+*.log
+*.sqlite
+*.db
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Model / cache artifacts (DO NOT PUSH)
+wheels/
+models/
+model_cache/
+cache/
+tmp/
+temp/
+downloads/
+*.bin
+*.gguf
+*.pt
+*.safetensors
+*.onnx
+
+# Ollama local storage (never in repo, but just in case)
 .ollama/
-ollama/models/
-**/ollama/models/
-**/blobs/

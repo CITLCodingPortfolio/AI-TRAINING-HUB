@@ -1,0 +1,86 @@
+from __future__ import annotations
+
+import os
+import shutil
+import subprocess
+from typing import Any, Dict, List
+
+
+def _run(cmd: List[str], timeout: int = 3) -> str:
+    p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    if p.returncode != 0:
+        msg = (p.stderr or p.stdout or "").strip()
+        raise RuntimeError(msg or f"Command failed: {cmd}")
+    return (p.stdout or "").strip()
+
+
+def _probe_nvidia_smi() -> List[Dict[str, Any]]:
+    exe = shutil.which("nvidia-smi")
+    if not exe:
+        return []
+
+    # If driver isn't working, this is where it fails — we handle it upstream.
+    out = _run(
+        [
+            exe,
+            "--query-gpu=name,temperature.gpu,utilization.gpu,memory.total,memory.used",
+            "--format=csv,noheader,nounits",
+        ],
+        timeout=3,
+    )
+
+    gpus: List[Dict[str, Any]] = []
+    for line in out.splitlines():
+        parts = [p.strip() for p in line.split(",")]
+        if len(parts) != 5:
+            continue
+        name, temp, util, mem_total, mem_used = parts
+        gpus.append(
+            {
+                "vendor": "nvidia",
+                "name": name,
+                "temperature_c": _safe_int(temp),
+                "utilization_pct": _safe_int(util),
+                "memory_total_mib": _safe_int(mem_total),
+                "memory_used_mib": _safe_int(mem_used),
+            }
+        )
+    return gpus
+
+
+def _probe_rocm_smi() -> List[Dict[str, Any]]:
+    exe = shutil.which("rocm-smi")
+    if not exe:
+        return []
+    # Keep it simple: if present, just confirm it's reachable
+    try:
+        _run([exe, "-i"], timeout=3)
+        return [{"vendor": "amd", "name": "ROCm GPU(s) detected"}]
+    except Exception:
+        return []
+
+
+def _safe_int(x: str) -> int | None:
+    try:
+        return int(float(x))
+    except Exception:
+        return None
+
+
+def get_gpus() -> List[Dict[str, Any]]:
+    """
+    Return a list of GPU info dicts.
+    MUST NOT raise (UI should still run without GPU drivers).
+    """
+    if os.environ.get("CITL_DISABLE_GPU_PROBE") == "1":
+        return []
+
+    # Try NVIDIA, then AMD; never crash the app
+    for probe in (_probe_nvidia_smi, _probe_rocm_smi):
+        try:
+            g = probe()
+            if g:
+                return g
+        except Exception:
+            continue
+    return []

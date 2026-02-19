@@ -1,0 +1,75 @@
+from __future__ import annotations
+
+import os
+import shutil
+import subprocess
+from typing import Any, Dict, List, Optional
+
+
+def _run(cmd: List[str], timeout: int = 3) -> str:
+    p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    if p.returncode != 0:
+        msg = (p.stderr or p.stdout or "").strip()
+        raise RuntimeError(msg or f"Command failed: {cmd}")
+    return (p.stdout or "").strip()
+
+
+def _safe_int(x: str) -> Optional[int]:
+    try:
+        return int(float(str(x).strip()))
+    except Exception:
+        return None
+
+
+def _probe_nvidia_smi() -> List[Dict[str, Any]]:
+    exe = shutil.which("nvidia-smi")
+    if not exe:
+        return []
+
+    # CSV noheader nounits returns: name,temp,util,mem_total,mem_used (MiB)
+    out = _run(
+        [
+            exe,
+            "--query-gpu=name,temperature.gpu,utilization.gpu,memory.total,memory.used",
+            "--format=csv,noheader,nounits",
+        ],
+        timeout=3,
+    )
+
+    gpus: List[Dict[str, Any]] = []
+    for line in out.splitlines():
+        parts = [p.strip() for p in line.split(",")]
+        if len(parts) != 5:
+            continue
+        name, temp, util, mem_total, mem_used = parts
+
+        total = _safe_int(mem_total)
+        used = _safe_int(mem_used)
+        free = (total - used) if (total is not None and used is not None) else None
+
+        gpus.append(
+            {
+                "vendor": "nvidia",
+                "name": name,
+                "temperature_c": _safe_int(temp),
+                "utilization_pct": _safe_int(util),
+                # Hub expects these exact names:
+                "vram_total_mb": total,
+                "vram_used_mb": used,
+                "vram_free_mb": free,
+            }
+        )
+    return gpus
+
+
+def get_gpus() -> List[Dict[str, Any]]:
+    """
+    MUST NOT raise. If drivers/tools are missing, return [].
+    """
+    if os.environ.get("CITL_DISABLE_GPU_PROBE") == "1":
+        return []
+    try:
+        g = _probe_nvidia_smi()
+        return g or []
+    except Exception:
+        return []

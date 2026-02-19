@@ -112,35 +112,6 @@ def tab_environment():
     # GPU
     st.subheader("GPU / VRAM / Temperature")
     gpus = get_gpus()
-    # CITL: normalize GPU records into SafeNS so Hub never crashes on missing attrs
-    from types import SimpleNamespace
-
-    class SafeNS(SimpleNamespace):
-        def __getattr__(self, name):
-            if name == "name":
-                return "GPU"
-            if name == "source":
-                return "nvidia-smi"
-            return None
-
-    def _to_ns(x):
-        if isinstance(x, dict):
-            return SafeNS(**x)
-        if hasattr(x, "__dict__"):
-            return SafeNS(**x.__dict__)
-        return SafeNS()
-
-    gpus = [_to_ns(x) for x in (gpus or [])]
-# CITL: normalize GPU dicts -> objects and guarantee expected attributes exist
-    from types import SimpleNamespace
-    gpus = [SimpleNamespace(**g) if isinstance(g, dict) else g for g in (gpus or [])]
-    for g in gpus:
-        # guarantee attributes exist (avoid AttributeError)
-        for k in ('vram_total_mb','vram_used_mb','vram_free_mb','utilization_pct','name','temp_c','temperature_c'):
-            if not hasattr(g, k): setattr(g, k, None)
-        # if only one temp field is present, copy to the other
-        if getattr(g,'temp_c',None) is None and getattr(g,'temperature_c',None) is not None: g.temp_c = g.temperature_c
-        if getattr(g,'temperature_c',None) is None and getattr(g,'temp_c',None) is not None: g.temperature_c = g.temp_c
     # CITL: normalize GPU dicts -> objects and ensure fields exist (never crash)
     from types import SimpleNamespace
     gpus = [SimpleNamespace(**g) if isinstance(g, dict) else g for g in (gpus or [])]
@@ -159,7 +130,7 @@ def tab_environment():
             c1.write(h_badge(getattr(g, "name", "GPU"), "#93C5FD"), unsafe_allow_html=True)
             c2.metric("VRAM Total (MB)", getattr(g, "vram_total_mb", None) if getattr(g, "vram_total_mb", None) is not None else "N/A")
             c3.metric("VRAM Used (MB)", getattr(g, "vram_used_mb", None) if getattr(g, "vram_used_mb", None) is not None else "N/A")
-            c4.metric("Temp (Â°C)", getattr(g, "temp_c", getattr(g, "temperature_c", None)) if getattr(g, "temp_c", getattr(g, "temperature_c", None)) is not None else "N/A")
+            c4.metric("Temp (Â°C)", g.temp_c if g.temp_c is not None else "N/A")
             st.caption(f"source: {g.source}")
     st.markdown("<div class='hr'></div>", unsafe_allow_html=True)
     # Ollama

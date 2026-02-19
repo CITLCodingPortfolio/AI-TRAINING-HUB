@@ -112,26 +112,7 @@ def tab_environment():
     # GPU
     st.subheader("GPU / VRAM / Temperature")
     gpus = get_gpus()
-    # CITL: normalize GPU records into SafeNS so Hub never crashes on missing attrs
-    from types import SimpleNamespace
-
-    class SafeNS(SimpleNamespace):
-        def __getattr__(self, name):
-            if name == "name":
-                return "GPU"
-            if name == "source":
-                return "nvidia-smi"
-            return None
-
-    def _to_ns(x):
-        if isinstance(x, dict):
-            return SafeNS(**x)
-        if hasattr(x, "__dict__"):
-            return SafeNS(**x.__dict__)
-        return SafeNS()
-
-    gpus = [_to_ns(x) for x in (gpus or [])]
-# CITL: normalize GPU dicts -> objects and guarantee expected attributes exist
+    # CITL: normalize GPU dicts -> objects and guarantee expected attributes exist
     from types import SimpleNamespace
     gpus = [SimpleNamespace(**g) if isinstance(g, dict) else g for g in (gpus or [])]
     for g in gpus:
