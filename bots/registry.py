@@ -127,6 +127,33 @@ def get_registry() -> Dict[str, BotMeta]:
                 ),
             ],
         ),
+        "ollama_bot": BotMeta(
+            bot_id="ollama_bot",
+            name="Hub Assistant",
+            color="#22D3EE",   # bright cyan — unique per-bot in IRC sandbox
+            description=(
+                "Live Ollama LLM bot built from bots/Modelfile. "
+                "Streams tokens in IRC-style colored chat. "
+                "Run: python -m bots.ollama_sandbox --bot ollama_bot"
+            ),
+            demos=[
+                Demo(
+                    title="Ask about Ollama setup",
+                    description="Sends a quick setup question to the hub-assistant model.",
+                    args={"text": "How do I pull and run a model with Ollama?"},
+                ),
+                Demo(
+                    title="Ask about LangGraph",
+                    description="Asks for a LangGraph starter pattern.",
+                    args={"text": "Show me a minimal LangGraph planner-executor pattern in Python."},
+                ),
+                Demo(
+                    title="Ask about SLURM GPU jobs",
+                    description="Asks for a SLURM sbatch script with GPU allocation.",
+                    args={"text": "Write a SLURM sbatch script that requests 1 A100 GPU and runs a Python training script."},
+                ),
+            ],
+        ),
     }
 def list_bots():
     reg = get_registry()

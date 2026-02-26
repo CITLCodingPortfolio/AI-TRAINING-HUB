@@ -3,7 +3,14 @@ import argparse
 import json
 from pathlib import Path
 from typing import List, Dict, Any, Optional
-from rich.console import Console
+# CITL_PATCH_RICH_FALLBACK_V1
+try:
+    from rich.console import Console  # type: ignore
+except Exception:
+    class Console:  # minimal fallback
+        def print(self, *a, **k):
+            print(*a)
+
 from rich.panel import Panel
 from bots.registry import get_registry
 console = Console()

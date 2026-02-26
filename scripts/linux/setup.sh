@@ -1,32 +1,33 @@
-#!/usr/bin/env bash
-set -Eeuo pipefail
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-ENVFILE="$ROOT/../config/citl.env"
-
-cd "$ROOT"
-
-# Optional shared env
-[ -f "$ENVFILE" ] && source "$ENVFILE" || true
-
-python3 -m venv .venv
-# shellcheck disable=SC1091
-source .venv/bin/activate
-python -m pip install -U pip wheel setuptools
-
-# If a lock/requirements exists, install it; else minimal for hub
-if [ -f "requirements/requirements-lock.txt" ]; then
-  # Mark Windows-only deps as Windows-only (prevents Linux pip failure)
-  perl -pi -e 's/^pywin32==([^\s]+)\s*$/pywin32==$1; platform_system=="Windows"/' requirements/requirements-lock.txt 2>/dev/null || true
-  perl -pi -e 's/^pyreadline3==([^\s]+)\s*$/pyreadline3==$1; platform_system=="Windows"/' requirements/requirements-lock.txt 2>/dev/null || true
-  pip install -r requirements/requirements-lock.txt || true
-elif [ -f "requirements.txt" ]; then
-  pip install -r requirements.txt || true
-else
-  # Minimal needed to run the Streamlit hub
-  pip install streamlit requests pydantic
+﻿#!/usr/bin/env bash
+set -euo pipefail
+# CITL_CWD_GUARD_V2
+if ! pwd >/dev/null 2>&1; then
+  cd "$HOME" 2>/dev/null || cd / 2>/dev/null || true
 fi
 
-# Ensure streamlit is present even if above didn’t install it
-python -c "import streamlit" 2>/dev/null || pip install streamlit
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+cd "$REPO_DIR"
 
-echo "[setup] OK"
+if command -v apt-get >/dev/null 2>&1; then
+  if command -v sudo >/dev/null 2>&1; then
+    sudo apt-get update -y
+    sudo apt-get install -y python3 python3-venv python3-pip python3-dev python3-tk xdg-utils
+  fi
+fi
+
+if [[ ! -d ".venv" ]]; then
+  python3 -m venv .venv
+fi
+. .venv/bin/activate
+python -m pip install -U pip setuptools wheel
+
+# Prefer requirements folder if present
+if [[ -f "requirements/requirements-linux.txt" ]]; then
+  pip install -r requirements/requirements-linux.txt
+elif [[ -f "requirements/requirements.txt" ]]; then
+  pip install -r requirements/requirements.txt
+elif [[ -f "requirements.txt" ]]; then
+  pip install -r requirements.txt
+fi
+
+echo "Setup complete."

@@ -10,6 +10,50 @@ import subprocess
 from pathlib import Path
 from typing import Dict, Any, List
 import streamlit as st
+
+# === CITL_PATCH_NEW_TERMINAL_CLI_V1 ================================================================
+# Makes the "Run (CLI subprocess)" button open a REAL interactive CLI in a NEW terminal
+# (instead of just printing JSON to the Streamlit output box).
+def _citl_find_hub_root():
+    from pathlib import Path
+    here = Path(__file__).resolve()
+    for parent in [here.parent] + list(here.parents):
+        if (parent / "bots" / "citl_cli.py").exists():
+            return parent
+    return here.parent
+
+def _citl_open_terminal(cmd, cwd=None):
+    import shutil, subprocess, os
+    terms = []
+    # gnome-terminal uses: gnome-terminal -- <cmd...>
+    if shutil.which("gnome-terminal"):
+        terms.append(["gnome-terminal", "--"])
+    # debian alternatives
+    if shutil.which("x-terminal-emulator"):
+        terms.append(["x-terminal-emulator", "-e"])
+    if shutil.which("xfce4-terminal"):
+        terms.append(["xfce4-terminal", "-e"])
+    if shutil.which("konsole"):
+        terms.append(["konsole", "-e"])
+    if shutil.which("tilix"):
+        terms.append(["tilix", "-e"])
+    if shutil.which("kitty"):
+        terms.append(["kitty", "-e"])
+    if shutil.which("alacritty"):
+        terms.append(["alacritty", "-e"])
+    if shutil.which("xterm"):
+        terms.append(["xterm", "-e"])
+
+    for prefix in terms:
+        try:
+            subprocess.Popen(prefix + cmd, cwd=cwd, start_new_session=True)
+            return True
+        except Exception:
+            continue
+    return False
+# === END CITL_PATCH_NEW_TERMINAL_CLI_V1 ============================================================
+
+
 import requests
 from bots.registry import list_bots, get_registry
 from bots.gpu_status import get_gpus
@@ -240,7 +284,18 @@ def tab_chat():
     bot_ids = sorted(reg.keys())
     bot_id = st.selectbox("Bot", bot_ids, index=0)
     msg = st.text_area("Message", "Hello! Show me what you can do.")
-    if st.button("Run (CLI subprocess)"):
+    run_new_terminal = st.button("Run (New Terminal CLI)")
+    run_capture = st.button("Run (Capture Output)")
+    if run_new_terminal:
+        hub = _citl_find_hub_root()
+        cli = str((hub / "bots" / "citl_cli.py").resolve())
+        ok = _citl_open_terminal([sys.executable, cli, "--bot", str(bot_id), "--message", str(msg)], cwd=str(hub))
+        if ok:
+            st.success("Launched interactive CLI in a new terminal.")
+        else:
+            st.error("No terminal emulator found (gnome-terminal/xterm/etc).")
+    if run_capture:
+
         meta = reg[bot_id]
         out = run_cli_bot(bot_id, {"text": msg})
         st.markdown(f"{h_badge(meta.name, meta.color)}", unsafe_allow_html=True)

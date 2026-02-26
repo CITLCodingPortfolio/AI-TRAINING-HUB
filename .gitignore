@@ -1,46 +1,30 @@
 # Python
+.venv/
 __pycache__/
 *.pyc
 *.pyo
-*.pyd
-*.so
-*.egg-info/
-.dist/
-.build/
-*.egg
 
-# Virtual env
-.venv/
-venv/
-ENV/
-.env
-.env.*
+# Runtime data
+logs/
+data/
 
-# Streamlit / local state
-.streamlit/
-*.log
+# Databases
 *.sqlite
-*.db
+*.sqlite3
 
-# OS/editor
+# OS
 .DS_Store
 Thumbs.db
-.vscode/
-.idea/
 
-# Model / cache artifacts (DO NOT PUSH)
-wheels/
-models/
-model_cache/
-cache/
-tmp/
-temp/
-downloads/
-*.bin
-*.gguf
-*.pt
-*.safetensors
-*.onnx
+# PyInstaller build artifacts (regenerate with build_exe.ps1)
+build/
+dist/
+*.spec.bak
 
-# Ollama local storage (never in repo, but just in case)
-.ollama/
+# Compiled EXEs at repo root (regenerate with build_exe.ps1)
+*.exe
+
+# Backup files (git history is the backup)
+*.bak
+*.bak_*
+*.bak-*

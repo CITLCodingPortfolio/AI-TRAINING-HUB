@@ -1,31 +1,19 @@
-#!/usr/bin/env bash
-set -Eeuo pipefail
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-ENVFILE="$ROOT/../config/citl.env"
-
-cd "$ROOT"
-[ -f "$ENVFILE" ] && source "$ENVFILE" || true
-
-# Ensure venv exists and streamlit imports
-if [ ! -d ".venv" ]; then
-  bash "$ROOT/scripts/linux/setup.sh"
+﻿#!/usr/bin/env bash
+set -euo pipefail
+# CITL_CWD_GUARD_V2
+if ! pwd >/dev/null 2>&1; then
+  cd "$HOME" 2>/dev/null || cd / 2>/dev/null || true
 fi
 
-# shellcheck disable=SC1091
-source .venv/bin/activate
-python -c "import streamlit" 2>/dev/null || bash "$ROOT/scripts/linux/setup.sh"
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+cd "$REPO_DIR"
 
-# Pick hub entry
-EP=""
-[ -f "app/hub.py" ] && EP="app/hub.py"
-[ -z "$EP" ] && [ -f "hub.py" ] && EP="hub.py"
-if [ -z "$EP" ]; then
-  echo "ERROR: cannot find Streamlit entry (expected app/hub.py or hub.py)"
-  exit 2
+if [[ ! -d ".venv" ]]; then
+  echo "venv missing. Run: ./scripts/linux/setup.sh"
+  exit 1
 fi
 
-echo "[run] OLLAMA_HOST=${OLLAMA_HOST:-http://127.0.0.1:11434}"
-echo "[run] CITL_LLM_MODEL=${CITL_LLM_MODEL:-}"
-echo "[run] Running Streamlit: $EP"
+. .venv/bin/activate
 
-python -m streamlit run "$EP" --server.address 127.0.0.1 --server.port 8501
+# Canonical entry:
+python3 hub_launcher.py
